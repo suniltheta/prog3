@@ -511,56 +511,16 @@ function handleLoadedTexture(texture) {
     gl.bindTexture(gl.TEXTURE_2D, null);
 }
 function initTexture() {
-    // for(var im=0; im<images.length; im++){
-    //     var colorMapTexture = gl.createTexture();
-    //     colorMapTexture.image = new Image();
-    //     colorMapTexture.image.onload = function () {
-    //         console.log("Sunil Said");
-    //         console.log(colorMapTexture.image.src);
-    //         handleLoadedTexture(colorMapTexture);
-    //     };
-    //     colorMapTexture.image.src = images[im];
-    //     colorMapTextureBuffer.push(colorMapTexture);
-    // }
-    var colorMapTexture1 = gl.createTexture();
-    colorMapTexture1.image = new Image();
-    colorMapTexture1.image.onload = function () {
-        handleLoadedTexture(colorMapTexture1);
-    };
-    colorMapTexture1.image.src = images[0];
-    colorMapTextureBuffer.push(colorMapTexture1);
-
-    var colorMapTexture2 = gl.createTexture();
-    colorMapTexture2.image = new Image();
-    colorMapTexture2.image.onload = function () {
-        handleLoadedTexture(colorMapTexture2);
-    };
-    colorMapTexture2.image.src = images[1];
-    colorMapTextureBuffer.push(colorMapTexture2);
-
-    var colorMapTexture3 = gl.createTexture();
-    colorMapTexture3.image = new Image();
-    colorMapTexture3.image.onload = function () {
-        handleLoadedTexture(colorMapTexture3);
-    };
-    colorMapTexture3.image.src = images[2];
-    colorMapTextureBuffer.push(colorMapTexture3);
-
-    var colorMapTexture4 = gl.createTexture();
-    colorMapTexture4.image = new Image();
-    colorMapTexture4.image.onload = function () {
-        handleLoadedTexture(colorMapTexture4);
-    };
-    colorMapTexture4.image.src = images[3];
-    colorMapTextureBuffer.push(colorMapTexture4);
-
-    var colorMapTexture5 = gl.createTexture();
-    colorMapTexture5.image = new Image();
-    colorMapTexture5.image.onload = function () {
-        handleLoadedTexture(colorMapTexture5);
-    };
-    colorMapTexture5.image.src = images[4];
-    colorMapTextureBuffer.push(colorMapTexture5);
+    for(var im=0; im<images.length; im++){
+        var colorMapTexture = gl.createTexture();
+        colorMapTexture.image = new Image();
+        colorMapTexture.image.onload = function () {
+            let index = images.findIndex(x => this.src.includes(x));
+            handleLoadedTexture(colorMapTextureBuffer[index]);
+        };
+        colorMapTexture.image.src = images[im];
+        colorMapTextureBuffer.push(colorMapTexture);
+    }
 }
 
 // setup the webGL shaders
@@ -622,7 +582,8 @@ function setupShaders() {
                 fragmentColor = vec4(1.0, 1.0, 1.0, 1.0);
             }
             
-            gl_FragColor = vec4(fragmentColor.rgb * colorOut, fragmentColor.a * alpha);
+            gl_FragColor = vec4(fragmentColor.rgb , fragmentColor.a);
+            //gl_FragColor = vec4(fragmentColor.rgb * colorOut, fragmentColor.a * alpha);
         }
     `;
 
