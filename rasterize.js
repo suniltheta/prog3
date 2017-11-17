@@ -3,6 +3,7 @@
 /* assignment specific globals */
 const INPUT_TRIANGLES_URL = "https://ncsucgclass.github.io/prog3/triangles.json"; // triangles file loc
 const INPUT_ELLIPSOIDS_URL = "https://ncsucgclass.github.io/prog3/ellipsoids.json"; // ellipsoids file loc
+const INPUT_URL = "https://ncsucgclass.github.io/prog3/";
 var defaultEye = vec3.fromValues(0.5,0.5,-0.5); // default eye position in world space
 var defaultCenter = vec3.fromValues(0.5,0.5,0.5); // default view direction in world space
 var defaultUp = vec3.fromValues(0,1,0); // default view up vector
@@ -26,6 +27,7 @@ var triSetSizes = []; // this contains the size of each triangle set
 var triangleBuffers = []; // lists of indices into vertexBuffers by set, in triples
 var images = []
 var colorMapTextureBuffer = [];
+var UseSurfaceColor = false;
 
 /* shader parameter locations */
 var vPosAttribLoc; // where to put position for vertex shader
@@ -137,6 +139,10 @@ function handleKeyDown(event) {
             break;
         case "ArrowDown": // select previous ellipsoid
             highlightModel(modelEnum.ELLIPSOID,(handleKeyDown.whichOn > 0) ? handleKeyDown.whichOn-1 : numEllipsoids-1);
+            break;
+
+        case "KeyB":
+            UseSurfaceColor = !UseSurfaceColor;
             break;
             
         // view change
@@ -306,11 +312,17 @@ function loadModels() {
                     latY = Math.sin(latAngle); // height at current latitude
                     for (var longAngle=0; longAngle<2*Math.PI; longAngle+=angleIncr){   // for each long
                         ellipsoidVertices.push(latRadius*Math.sin(longAngle),latY,latRadius*Math.cos(longAngle));
-                        ellipsoidTextures.push(1- longAngle/2*Math.PI , 1 - (latAngle+latLimitAngle)/(2 * latLimitAngle ))
+                        // console.log("vertices", longAngle);
+                        // console.log(latRadius*Math.sin(longAngle),latY,latRadius*Math.cos(longAngle));
+                        // ellipsoidTextures.push(1- longAngle/2*Math.PI , 1 - (latAngle+latLimitAngle)/(2 * latLimitAngle ))
+                        // ellipsoidTextures.push(longAngle/(2*Math.PI) , (latAngle+latLimitAngle)/(2 * latLimitAngle ))
+                        ellipsoidTextures.push(longAngle/(2*Math.PI) , (latAngle * 2 +Math.PI)/(Math.PI * 2))
+                        // console.log("texture", longAngle);
+                        // console.log(longAngle/2*Math.PI , (latAngle * 2 +Math.PI)/(Math.PI * 2));
                     }
                 } // end for each latitude
                 ellipsoidVertices.push(0,1,0); // add north pole
-                ellipsoidTextures.push(1,1);
+                ellipsoidTextures.push(0,1);
                 ellipsoidVertices = ellipsoidVertices.map(function(val,idx) { // position and scale ellipsoid
                     switch (idx % 3) {
                         case 0: // x
@@ -500,25 +512,39 @@ function loadModels() {
     } // end catch
 } // end load models
 
+function isPowerOf2(value) {
+    return (value & (value - 1)) == 0;
+}
+
 function handleLoadedTexture(texture) {
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
-    gl.generateMipmap(gl.TEXTURE_2D);
+    if (isPowerOf2(texture.image.width) && isPowerOf2(texture.image.height)) {
+        // Yes, it's a power of 2. Generate mips.
+        gl.generateMipmap(gl.TEXTURE_2D);
+    } else {
+        // No, it's not a power of 2. Turn of mips and set
+        // wrapping to clamp to edge
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    }
 
     gl.bindTexture(gl.TEXTURE_2D, null);
 }
+
 function initTexture() {
     for(var im=0; im<images.length; im++){
         var colorMapTexture = gl.createTexture();
         colorMapTexture.image = new Image();
+        colorMapTexture.image.crossOrigin = "Anonymous";
         colorMapTexture.image.onload = function () {
             let index = images.findIndex(x => this.src.includes(x));
             handleLoadedTexture(colorMapTextureBuffer[index]);
         };
-        colorMapTexture.image.src = images[im];
+        colorMapTexture.image.src = INPUT_URL + images[im];
         colorMapTextureBuffer.push(colorMapTexture);
     }
 }
@@ -546,6 +572,7 @@ function setupShaders() {
         uniform float uShininess; // the specular exponent
         
         uniform float alpha;
+        uniform bool uSurfaceColor;
         
         uniform sampler2D uColorMapSampler;
         
@@ -582,8 +609,12 @@ function setupShaders() {
                 fragmentColor = vec4(1.0, 1.0, 1.0, 1.0);
             }
             
-            gl_FragColor = vec4(fragmentColor.rgb , fragmentColor.a);
-            //gl_FragColor = vec4(fragmentColor.rgb * colorOut, fragmentColor.a * alpha);
+            if(!uSurfaceColor){
+                gl_FragColor = vec4(fragmentColor.rgb , fragmentColor.a);
+            }
+            else{
+                gl_FragColor = vec4(fragmentColor.rgb * colorOut, fragmentColor.a * alpha);
+            }            
         }
     `;
 
@@ -665,6 +696,7 @@ function setupShaders() {
                 alphaULoc = gl.getUniformLocation(shaderProgram, "alpha"); // ptr to alpha
 
                 colorMapSamplerUniform = gl.getUniformLocation(shaderProgram, "uColorMapSampler");
+                useSurfaceColor = gl.getUniformLocation(shaderProgram, "uSurfaceColor");
                 
                 // pass global constants into fragment uniforms
                 gl.uniform3fv(eyePositionULoc,Eye); // pass in the eye's position
@@ -751,6 +783,7 @@ function renderModels() {
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, colorMapTextureBuffer[whichTriSet]);
         gl.uniform1i(colorMapSamplerUniform, 0);
+        gl.uniform1i(useSurfaceColor, UseSurfaceColor);
 
         // vertex buffer: activate and feed into vertex shader
         gl.bindBuffer(gl.ARRAY_BUFFER,vertexBuffers[whichTriSet]); // activate
